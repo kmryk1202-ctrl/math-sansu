@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>マットの密度比較</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&amp;family=Fredoka:wght@500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Noto Sans JP', sans-serif; }
+    .mat-cell {
+      background: #a8d5ba;
+      border: 2px solid #6fb58a;
+      border-radius: 4px;
+      position: relative;
+      aspect-ratio: 1;
+    }
+    .dot {
+      width: 12px; height: 12px;
+      background: #e74c3c;
+      border-radius: 50%;
+      position: absolute;
+    }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ <script src="/_sdk/telemetry_sdk.js"></script></head>
+ <body class="h-full">
+  <div id="app" class="h-full w-full bg-slate-50 overflow-auto"><!-- Setup Screen -->
+   <div id="setup-screen" class="flex flex-col items-center justify-center p-6 min-h-full">
+    <h1 id="main-title" class="text-2xl font-bold text-slate-800 mb-8" style="font-family:'Fredoka',sans-serif;">マットの密度比較</h1>
+    <div class="flex items-center gap-4 mb-8 bg-white rounded-lg p-4 shadow-md">
+     <label class="text-slate-600 font-bold">見方：</label> <button id="view-mode-people" class="px-4 py-2 rounded-lg font-bold transition-all bg-blue-500 text-white">１枚あたりの人数</button> <button id="view-mode-mats" class="px-4 py-2 rounded-lg font-bold transition-all bg-slate-200 text-slate-600 hover:bg-slate-300">１人あたりの枚数</button>
+    </div>
+    <div class="flex flex-col md:flex-row gap-6 w-full max-w-xl"><!-- Group A -->
+     <div class="flex-1 bg-white rounded-xl p-5 shadow-md border-l-4 border-blue-500">
+      <h2 class="font-bold text-blue-600 text-lg mb-4">グループ A</h2><label class="block text-sm text-slate-600 mb-2">マットの枚数</label> <input id="a-mats" type="number" min="1" max="20" value="4" class="w-full border-2 rounded-lg px-4 py-3 mb-4 text-3xl font-bold text-center"> <label class="block text-sm text-slate-600 mb-2">人数</label> <input id="a-people" type="number" min="1" max="50" value="6" class="w-full border-2 rounded-lg px-4 py-3 text-3xl font-bold text-center">
+     </div><!-- Group B -->
+     <div class="flex-1 bg-white rounded-xl p-5 shadow-md border-l-4 border-orange-500">
+      <h2 class="font-bold text-orange-600 text-lg mb-4">グループ B</h2><label class="block text-sm text-slate-600 mb-2">マットの枚数</label> <input id="b-mats" type="number" min="1" max="20" value="5" class="w-full border-2 rounded-lg px-4 py-3 mb-4 text-3xl font-bold text-center"> <label class="block text-sm text-slate-600 mb-2">人数</label> <input id="b-people" type="number" min="1" max="50" value="8" class="w-full border-2 rounded-lg px-4 py-3 text-3xl font-bold text-center">
+     </div>
+    </div><button id="compare-btn" class="mt-8 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-3 rounded-full text-lg transition-all shadow-lg"> くらべる！ </button>
+   </div><!-- Result Screen -->
+   <div id="result-screen" class="hidden flex-col items-center p-6 min-h-full"><button id="back-btn" class="self-start mb-4 flex items-center gap-1 text-slate-600 hover:text-slate-900"> <i data-lucide="arrow-left" style="width:20px;height:20px;"></i> もどる </button>
+    <div class="flex flex-col md:flex-row gap-8 w-full max-w-3xl">
+     <div class="flex-1">
+      <h2 class="font-bold text-blue-600 text-center text-lg mb-2">グループ A</h2>
+      <div id="viz-a" class="bg-white rounded-xl p-4 shadow-md min-h-[200px]"></div>
+      <p id="density-a" class="text-center mt-3 font-bold text-slate-700 text-lg"></p>
+     </div>
+     <div class="flex-1">
+      <h2 class="font-bold text-orange-600 text-center text-lg mb-2">グループ B</h2>
+      <div id="viz-b" class="bg-white rounded-xl p-4 shadow-md min-h-[200px]"></div>
+      <p id="density-b" class="text-center mt-3 font-bold text-slate-700 text-lg"></p>
+     </div>
+    </div>
+    <div id="conclusion" class="mt-6 bg-yellow-50 border border-yellow-300 rounded-xl px-6 py-4 text-center text-lg font-bold text-slate-800 max-w-md"></div>
+   </div>
+  </div>
+  <script>
+  const defaultConfig = {
+    main_title: '混み具合を比べよう',
+    primary_color: '#f8fafc',
+    surface_color: '#ffffff',
+    text_color: '#1e293b',
+    action_color: '#059669',
+    accent_color: '#3b82f6'
+  };
+
+  let viewMode = 'people'; // 'people' or 'mats'
+
+  window.elementSdk.init({
+    defaultConfig,
+    onConfigChange: async (config) => {
+      document.getElementById('main-title').textContent = config.main_title || defaultConfig.main_title;
+      document.getElementById('app').style.backgroundColor = config.primary_color || defaultConfig.primary_color;
+      document.getElementById('compare-btn').style.backgroundColor = config.action_color || defaultConfig.action_color;
+    },
+    mapToCapabilities: (config) => ({
+      recolorables: [
+        { get: () => config.primary_color || defaultConfig.primary_color, set: (v) => { config.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); } },
+        { get: () => config.surface_color || defaultConfig.surface_color, set: (v) => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+        { get: () => config.text_color || defaultConfig.text_color, set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+        { get: () => config.action_color || defaultConfig.action_color, set: (v) => { config.action_color = v; window.elementSdk.setConfig({ action_color: v }); } },
+        { get: () => config.accent_color || defaultConfig.accent_color, set: (v) => { config.accent_color = v; window.elementSdk.setConfig({ accent_color: v }); } }
+      ],
+      borderables: [],
+      fontEditable: undefined,
+      fontSizeable: undefined
+    }),
+    mapToEditPanelValues: (config) => new Map([
+      ['main_title', config.main_title || defaultConfig.main_title]
+    ])
+  });
+
+  // View mode toggle
+  document.getElementById('view-mode-people').addEventListener('click', () => {
+    viewMode = 'people';
+    document.getElementById('view-mode-people').classList.add('bg-blue-500', 'text-white');
+    document.getElementById('view-mode-people').classList.remove('bg-slate-200', 'text-slate-600', 'hover:bg-slate-300');
+    document.getElementById('view-mode-mats').classList.add('bg-slate-200', 'text-slate-600', 'hover:bg-slate-300');
+    document.getElementById('view-mode-mats').classList.remove('bg-blue-500', 'text-white');
+  });
+
+  document.getElementById('view-mode-mats').addEventListener('click', () => {
+    viewMode = 'mats';
+    document.getElementById('view-mode-mats').classList.add('bg-blue-500', 'text-white');
+    document.getElementById('view-mode-mats').classList.remove('bg-slate-200', 'text-slate-600', 'hover:bg-slate-300');
+    document.getElementById('view-mode-people').classList.add('bg-slate-200', 'text-slate-600', 'hover:bg-slate-300');
+    document.getElementById('view-mode-people').classList.remove('bg-blue-500', 'text-white');
+  });
+
+  // App logic
+  const setupScreen = document.getElementById('setup-screen');
+  const resultScreen = document.getElementById('result-screen');
+
+  document.getElementById('compare-btn').addEventListener('click', () => {
+    const aMats = Math.max(1, parseInt(document.getElementById('a-mats').value) || 1);
+    const aPeople = Math.max(1, parseInt(document.getElementById('a-people').value) || 1);
+    const bMats = Math.max(1, parseInt(document.getElementById('b-mats').value) || 1);
+    const bPeople = Math.max(1, parseInt(document.getElementById('b-people').value) || 1);
+
+    setupScreen.classList.add('hidden');
+    resultScreen.classList.remove('hidden');
+    resultScreen.classList.add('flex');
+
+    renderViz('viz-a', aMats, aPeople);
+    renderViz('viz-b', bMats, bPeople);
+
+    const densA = (aPeople / aMats);
+    const densB = (bPeople / bMats);
+    
+    let densAText, densBText, conclusionText;
+    
+    if (viewMode === 'people') {
+      densAText = `1枚あたり ${densA.toFixed(2)} 人`;
+      densBText = `1枚あたり ${densB.toFixed(2)} 人`;
+      if (densA > densB) {
+        conclusionText = '🟦 Aのほうが混んでいる！';
+      } else if (densB > densA) {
+        conclusionText = '🟧 Bのほうが混んでいる！';
+      } else {
+        conclusionText = '同じ密度です！';
+      }
+    } else {
+      const mPerPA = (aMats / aPeople);
+      const mPerPB = (bMats / bPeople);
+      densAText = `1人あたり ${mPerPA.toFixed(2)} 枚`;
+      densBText = `1人あたり ${mPerPB.toFixed(2)} 枚`;
+      if (mPerPA < mPerPB) {
+        conclusionText = '🟦 Aのほうが混んでいる！';
+      } else if (mPerPB < mPerPA) {
+        conclusionText = '🟧 Bのほうが混んでいる！';
+      } else {
+        conclusionText = '同じ密度です！';
+      }
+    }
+    
+    document.getElementById('density-a').textContent = densAText;
+    document.getElementById('density-b').textContent = densBText;
+    document.getElementById('conclusion').textContent = conclusionText;
+
+    lucide.createIcons();
+  });
+
+  document.getElementById('back-btn').addEventListener('click', () => {
+    resultScreen.classList.add('hidden');
+    resultScreen.classList.remove('flex');
+    setupScreen.classList.remove('hidden');
+  });
+
+  function renderViz(containerId, mats, people) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    // Grid of mats - fixed size
+    const matSize = 60;
+    const cols = Math.ceil(Math.sqrt(mats));
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = `repeat(${cols}, ${matSize}px)`;
+    grid.style.gap = '0px';
+    grid.style.position = 'relative';
+
+    for (let i = 0; i < mats; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'mat-cell';
+      cell.style.width = `${matSize}px`;
+      cell.style.height = `${matSize}px`;
+      grid.appendChild(cell);
+    }
+    container.appendChild(grid);
+
+    // Place dots randomly on mats after render
+    requestAnimationFrame(() => {
+      const cells = grid.querySelectorAll('.mat-cell');
+      for (let i = 0; i < people; i++) {
+        const targetCell = cells[i % mats];
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        const x = 10 + Math.random() * 60;
+        const y = 10 + Math.random() * 60;
+        dot.style.left = x + '%';
+        dot.style.top = y + '%';
+        targetCell.appendChild(dot);
+      }
+    });
+  }
+
+  lucide.createIcons();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a05c77cc1a109671',t:'MTc4MDQ2NjMyNg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
